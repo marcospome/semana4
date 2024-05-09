@@ -1,80 +1,157 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 using MvcMovie.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace semana4.Controllers
 {
     public class MoviesController : Controller
     {
+        private readonly IMemoryCache _cache;
+
+        public MoviesController(IMemoryCache cache)
+        {
+            _cache = cache;
+
+            // Inicialización de la lista de películas en el caché si no existe
+            if (!_cache.TryGetValue("Movies", out List<Movie> movies))
+            {
+                movies = new List<Movie>
+                {
+                    new Movie { Id = 1, Titulo = "La noche del terror", Genero = "Terror", Precio = 250, Fecha_Estreno = DateTime.Now },
+                    new Movie { Id = 2, Titulo = "La noche del terror II", Genero = "Terror", Precio = 300, Fecha_Estreno = DateTime.Now },
+                    new Movie { Id = 3, Titulo = "Sherk", Genero = "Animada", Precio = 350, Fecha_Estreno = DateTime.Now },
+                    new Movie { Id = 4, Titulo = "Dune", Genero = "Ciencia Ficción", Precio = 500, Fecha_Estreno = DateTime.Now }
+                };
+                _cache.Set("Movies", movies);
+            }
+        }
+
+        // GET: Movies
+        public IActionResult Index()
+        {
+            var movies = _cache.Get<List<Movie>>("Movies");
+            return View(movies);
+        }
+
         // GET: Movies/Details/5
-        public async Task<IActionResult> Details(int? id)
+        public IActionResult Details(int? id)
         {
             if (id == null)
             {
                 return NotFound();
             }
 
-            //Simulación de creación de un objeto (model)
-            //Mas adelante vamos a ver como usar una base de datos
-            var movie = new Movie
+            var movies = _cache.Get<List<Movie>>("Movies");
+            var movie = movies.FirstOrDefault(m => m.Id == id);
+            if (movie == null)
             {
-                Genero = "Terror",
-                Id = 1,
-                Precio = 1,
-                Fecha_Estreno = DateTime.Now,
-                Titulo = "La noche del terror"
-            };
-
+                return NotFound();
+            }
 
             return View(movie);
         }
 
-
-
-        // GET: Movies
-        public async Task<IActionResult> Index()
+        // GET: Movies/Create
+        public IActionResult Create()
         {
-            var listMovies = new List<Movie>();
+            return View();
+        }
 
-            var movie1 = new Movie
+        // POST: Movies/Create
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult Create([Bind("Titulo,Genero,Precio,Fecha_Estreno")] Movie movie)
+        {
+            if (ModelState.IsValid)
             {
-                Genero = "Terror",
-                Id = 1,
-                Precio = 250,
-                Fecha_Estreno = DateTime.Now,
-                Titulo = "La noche del terror"
-            };
-            listMovies.Add(movie1);
+                var movies = _cache.Get<List<Movie>>("Movies");
+                movie.Id = movies.Max(m => m.Id) + 1;
+                movies.Add(movie);
+                _cache.Set("Movies", movies);
+                return RedirectToAction(nameof(Index));
+            }
+            return View(movie);
+        }
 
-            var movie2 = new Movie
+        // GET: Movies/Edit/5
+        public IActionResult Edit(int? id)
+        {
+            if (id == null)
             {
-                Genero = "Terror",
-                Id = 1,
-                Precio = 300,
-                Fecha_Estreno = DateTime.Now,
-                Titulo = "La noche del terror II"
-            };
-            listMovies.Add(movie2);
-            var movie3 = new Movie
-            {
-                Genero = "Animada",
-                Id = 1,
-                Precio = 350,
-                Fecha_Estreno = DateTime.Now,
-                Titulo = "Sherk"
-            };
-            listMovies.Add(movie3);
-            var movie4 = new Movie
-            {
-                Genero = "Ciencia Ficción",
-                Id = 1,
-                Precio = 500,
-                Fecha_Estreno = DateTime.Now,
-                Titulo = "Dune"
-            };
-            listMovies.Add(movie4);
+                return NotFound();
+            }
 
-            return View(listMovies);
+            var movies = _cache.Get<List<Movie>>("Movies");
+            var movie = movies.FirstOrDefault(m => m.Id == id);
+            if (movie == null)
+            {
+                return NotFound();
+            }
+            return View(movie);
+        }
 
+        // POST: Movies/Edit/5
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult Edit(int id, [Bind("Id,Titulo,Genero,Precio,Fecha_Estreno")] Movie movie)
+        {
+            if (id != movie.Id)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                var movies = _cache.Get<List<Movie>>("Movies");
+                var existingMovie = movies.FirstOrDefault(m => m.Id == id);
+                if (existingMovie != null)
+                {
+                    existingMovie.Titulo = movie.Titulo;
+                    existingMovie.Genero = movie.Genero;
+                    existingMovie.Precio = movie.Precio;
+                    existingMovie.Fecha_Estreno = movie.Fecha_Estreno;
+                    _cache.Set("Movies", movies);
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            return View(movie);
+        }
+
+        // GET: Movies/Delete/5
+        public IActionResult Delete(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var movies = _cache.Get<List<Movie>>("Movies");
+            var movie = movies.FirstOrDefault(m => m.Id == id);
+            if (movie == null)
+            {
+                return NotFound();
+            }
+
+            return View(movie);
+        }
+
+        // POST: Movies/Delete/5
+        [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteConfirmed(int id)
+        {
+            var movies = _cache.Get<List<Movie>>("Movies");
+            var movie = movies.FirstOrDefault(m => m.Id == id);
+            if (movie != null)
+            {
+                movies.Remove(movie);
+                _cache.Set("Movies", movies);
+                return RedirectToAction(nameof(Index));
+            }
+            return RedirectToAction(nameof(Index));
         }
     }
 }
